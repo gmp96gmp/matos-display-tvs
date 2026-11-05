@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Matos Restaurante — Sinalização Digital</title>
+<style>
+html, body {
+margin: 0;
+padding: 0;
+width: 100%;
+height: 100%;
+overflow: hidden;
+cursor: none;
+user-select: none;
+-webkit-user-select: none;
+background: #000;
+font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+#stage {
+position: fixed;
+inset: 0;
+width: 100vw;
+height: 100vh;
+background: #000;
+}
+.layer {
+position: absolute;
+inset: 0;
+opacity: 0;
+transition: opacity 0.8s ease-in-out;
+pointer-events: none;
+}
+.layer.visible {
+opacity: 1;
+}
+#video-layer {
+background: #720709;
+}
+#video-layer video {
+width: 100%;
+height: 100%;
+object-fit: contain;
+background: #720709;
+}
+.logo-layer {
+display: flex;
+align-items: center;
+justify-content: center;
+}
+.logo-img {
+max-width: 90vw;
+height: 60vh;
+object-fit: contain;
+}
+.logo-card {
+background: #ffffff;
+border-radius: 28px;
+padding: 48px 64px;
+box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+display: flex;
+align-items: center;
+justify-content: center;
+}
+.brand-fallback {
+font-size: 9vw;
+font-weight: 800;
+letter-spacing: 0.02em;
+text-align: center;
+line-height: 1;
+}
+.period-badge {
+position: absolute;
+top: 28px;
+left: 28px;
+padding: 6px 14px;
+border-radius: 999px;
+background: rgba(0, 0, 0, 0.45);
+color: #ffffff;
+font-size: 15px;
+font-weight: 600;
+letter-spacing: 0.08em;
+display: none;
+}
+.period-badge.show {
+display: block;
+}
+.qr-card {
+position: absolute;
+right: 40px;
+bottom: 40px;
+background: #ffffff;
+border-radius: 20px;
+padding: 18px 18px 14px;
+text-align: center;
+box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+.qr-card img {
+width: 220px;
+height: 220px;
+display: block;
+}
+.qr-card .qr-title {
+color: #111111;
+font-size: 18px;
+font-weight: 700;
+margin-top: 8px;
+line-height: 1.25;
+}
+.qr-card .qr-sub {
+color: #333333;
+font-size: 15px;
+line-height: 1.25;
+}
+.clock {
+position: absolute;
+left: 32px;
+bottom: 32px;
+font-size: 28px;
+font-weight: 700;
+opacity: 0.7;
+font-variant-numeric: tabular-nums;
+}
+#status-toast {
+position: absolute;
+top: 28px;
+right: 28px;
+color: #ffffff;
+font-size: 14px;
+opacity: 0.6;
+}
+</style>
+</head>
+<body>
+<div id="stage">
+
+<!-- Camada de vídeo -->
+<div class="layer" id="video-layer">
+<video id="promo-video" muted autoplay playsinline preload="auto" disablepictureinpicture controlslist="nodownload nofullscreen noremoteplayback"></video>
+</div>
+
+<!-- Slide 1: Matsumori -->
+<div class="layer logo-layer" id="slide-0" data-brand="Matsumori" style="background:#0e3010;">
+<img class="logo-img" src="https://gmp96gmp.github.io/matos-display-tvs/logo-matsumori.png" alt="Matsumori Culinária Japonesa">
+<span class="brand-fallback" style="display:none;color:#ffffff;">MATSUMORI</span>
+</div>
+
+<!-- Slide 2: It's Fiha -->
+<div class="layer logo-layer" id="slide-1" data-brand="It's Fiha" style="background:#932125;">
+<img class="logo-img" src="https://gmp96gmp.github.io/matos-display-tvs/logo-itsfiha.png" alt="It's Fiha">
+<span class="brand-fallback" style="display:none;color:#ffffff;">IT'S FIHA</span>
+</div>
+
+<!-- Slide 3: Tropicana -->
+<div class="layer logo-layer" id="slide-2" data-brand="Tropicana" style="background:#f2cd52;">
+<img class="logo-img" src="https://gmp96gmp.github.io/matos-display-tvs/logo-tropicana.png" alt="Tropicana Lanches e Açaí">
+<span class="brand-fallback" style="display:none;color:#4a2c12;">TROPICANA</span>
+</div>
+
+<!-- Slide 4: Matos Restaurante -->
+<div class="layer logo-layer" id="slide-3" data-brand="Matos Restaurante" style="background:#720709;">
+<div class="logo-card">
+<img class="logo-img" src="https://gmp96gmp.github.io/matos-display-tvs/logo-matos.png" alt="Matos Restaurante">
+</div>
+<span class="brand-fallback" style="display:none;color:#ffffff;">MATOS RESTAURANTE</span>
+</div>
+
+<!-- Elementos comuns sobre os slides de logo -->
+<div id="period-badge" class="period-badge" aria-live="polite"></div>
+<div id="qr-card" class="qr-card layer-overlay" style="display:none;">
+<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=https%3A%2F%2Fwa.me%2F5524992817332" alt="QR Code WhatsApp Matos">
+<div class="qr-title">Pedidos e reservas</div>
+<div class="qr-sub">pelo WhatsApp</div>
+</div>
+<div id="clock" class="clock" style="display:none;">--:--</div>
+</div>
+
+<script>
+/* =========================================================
+   CONFIGURAÇÃO
+   ========================================================= */
+const VIDEO_URL = "https://gmp96gmp.github.io/matos-display-tvs/video-matos-1.mp4";
+const LOGO_DURATION_MS = 6000;   // cada slide de logo fica 6s
+const FADE_MS = 800;             // crossfade 0.8s
+const VIDEO_TIMEOUT_MS = 8000;   // timeout de carregamento do vídeo
+
+const video = document.getElementById("promo-video");
+const videoLayer = document.getElementById("video-layer");
+const logoSlides = Array.from(document.querySelectorAll(".logo-layer"));
+const qrCard = document.getElementById("qr-card");
+const clockEl = document.getElementById("clock");
+const periodBadge = document.getElementById("period-badge");
+
+/* Estado da playlist */
+let playlistIndex = 0;     // posição atual no ciclo
+let currentLayer = null;   // camada atualmente visível
+let videoFailedThisCycle = false;
+let videoTimer = null;
+
+/* =========================================================
+   AGENDAMENTO (almoço/jantar e relógio)
+   ========================================================= */
+// Retorna "ALMOÇO", "JANTAR" ou null, conforme horário local
+function getPeriodLabel(date = new Date()) {
+const minutes = date.getHours() * 60 + date.getMinutes();
+if (minutes >= 11 * 60 && minutes <= 16 * 60 + 59) return "ALMOÇO";
+if (minutes >= 17 * 60 && minutes <= 23 * 60 + 59) return "JANTAR";
+return null;
+}
+
+// Atualiza badge e relógio; roda a cada minuto sem recarregar a página
+function refreshSchedule() {
+const now = new Date();
+const label = getPeriodLabel(now);
+if (label) {
+periodBadge.textContent = label;
+periodBadge.classList.add("show");
+} else {
+periodBadge.classList.remove("show");
+}
+clockEl.textContent = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+}
+
+// Relógio atualizado a cada minuto, alinhado ao início do minuto
+function scheduleMinuteTicks() {
+refreshSchedule();
+const msToNextMinute = 60000 - (Date.now() % 60000);
+setTimeout(() => {
+refreshSchedule();
+setInterval(refreshSchedule, 60000);
+}, msToNextMinute);
+}
+
+/* =========================================================
+   TRANSIÇÕES (crossfade)
+   ========================================================= */
+// Mostra uma camada com crossfade e oculta a anterior
+function showLayer(layer) {
+if (currentLayer && currentLayer !== layer) {
+currentLayer.classList.remove("visible");
+}
+layer.classList.add("visible");
+currentLayer = layer;
+}
+
+/* =========================================================
+   FALLBACK DE VÍDEO
+   ========================================================= */
+// Pula para a sequência de logos se o vídeo falhar ou demorar além de 8s
+function handleVideoFailure() {
+if (videoTimer) { clearTimeout(videoTimer); videoTimer = null; }
+video.pause();
+video.removeAttribute("src");
+video.load();
+videoFailedThisCycle = true;
+// Próximo passo: slide de logo (índice a partir do vídeo)
+advanceFromVideoFallback();
+}
+
+function playVideoSegment() {
+// Tenta o vídeo com timeout de 8s
+videoFailedThisCycle = false;
+video.src = VIDEO_URL;
+showLayer(videoLayer);
+
+videoTimer = setTimeout(() => {
+if (video.readyState < 2) {
+handleVideoFailure();
+}
+}, VIDEO_TIMEOUT_MS);
+
+const playPromise = video.play();
+if (playPromise && typeof playPromise.catch === "function") {
+playPromise.catch(() => handleVideoFailure());
+}
+}
+
+video.addEventListener("playing", () => {
+if (videoTimer) { clearTimeout(videoTimer); videoTimer = null; }
+});
+
+video.addEventListener("error", handleVideoFailure);
+
+video.addEventListener("ended", () => {
+// Vídeo tocou inteiro uma vez: segue para o próximo item da playlist
+if (videoTimer) { clearTimeout(videoTimer); videoTimer = null; }
+advancePlaylist();
+});
+
+// Após falha do vídeo: mostra slides de logo no lugar do vídeo
+function advanceFromVideoFallback() {
+// Caso o vídeo caia no meio do ciclo, retoma no próximo slide de logo
+showLogoAt(playlistIndex);
+}
+
+/* =========================================================
+   PLAYLIST EM LOOP
+   Sequência: VÍDEO → Logo 1 → Logo 2 → VÍDEO → Logo 3 → Logo 4 → repete
+   ========================================================= */
+// Índices: 0 = vídeo, 1 = logo1, 2 = logo2, 3 = vídeo, 4 = logo3, 5 = logo4
+const PLAYLIST = [
+{ type: "video" },
+{ type: "logo", index: 0 },
+{ type: "logo", index: 1 },
+{ type: "video" },
+{ type: "logo", index: 2 },
+{ type: "logo", index: 3 }
+];
+
+let logoTimer = null;
+
+// Avança para o próximo item do loop
+function advancePlaylist() {
+playlistIndex = (playlistIndex + 1) % PLAYLIST.length;
+runPlaylistItem();
+}
+
+// Executa o item atual da playlist
+function runPlaylistItem() {
+const item = PLAYLIST[playlistIndex];
+if (item.type === "video") {
+// Vídeo: sem o QR/relógio/badge por cima
+setOverlaysVisible(false);
+if (videoFailedThisCycle) {
+// Pula o vídeo neste ciclo e segue para os logos
+videoFailedThisCycle = false;
+playlistIndex = (playlistIndex + 1) % PLAYLIST.length;
+runPlaylistItem();
+return;
+}
+playVideoSegment();
+} else {
+showLogoAt(playlistIndex);
+}
+}
+
+// Mostra um slide de logo e agenda o próximo item após 6s
+function showLogoAt(playlistPos) {
+const item = PLAYLIST[playlistPos];
+const logoIdx = item.index !== undefined ? item.index : 0;
+const layer = logoSlides[logoIdx];
+video.pause();
+showLayer(layer);
+setOverlaysVisible(true);
+refreshSchedule();
+
+if (logoTimer) clearTimeout(logoTimer);
+logoTimer = setTimeout(() => {
+advancePlaylist();
+}, LOGO_DURATION_MS);
+}
+
+// Mostra ou esconde QR code, badge e relógio
+function setOverlaysVisible(visible) {
+qrCard.style.display = visible ? "block" : "none";
+clockEl.style.display = visible ? "block" : "none";
+if (!visible) periodBadge.classList.remove("show");
+else refreshSchedule();
+}
+
+/* =========================================================
+   FALLBACK DE IMAGENS DOS LOGOS
+   Se a imagem falhar, esconde a img e mostra o nome da marca
+   ========================================================= */
+function setupLogoFallbacks() {
+logoSlides.forEach(slide => {
+const img = slide.querySelector("img.logo-img");
+const fallback = slide.querySelector(".brand-fallback");
+if (!img) return;
+img.addEventListener("error", () => {
+img.style.display = "none";
+if (fallback) fallback.style.display = "block";
+});
+});
+}
+
+/* =========================================================
+   INÍCIO
+   ========================================================= */
+document.addEventListener("DOMContentLoaded", () => {
+setupLogoFallbacks();
+scheduleMinuteTicks();
+// Inicia a playlist pelo vídeo
+playlistIndex = 0;
+runPlaylistItem();
+});
+</script>
+</body>
+</html>
