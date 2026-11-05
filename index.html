@@ -53,14 +53,11 @@ max-width: 90vw;
 height: 60vh;
 object-fit: contain;
 }
-.logo-card {
-background: #ffffff;
-border-radius: 28px;
-padding: 48px 64px;
-box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-display: flex;
-align-items: center;
-justify-content: center;
+.logo-img.logo-matos {
+height: 60vh;
+}
+.logo-img.logo-fiha {
+height: 75vh;
 }
 .brand-fallback {
 font-size: 9vw;
@@ -70,19 +67,24 @@ text-align: center;
 line-height: 1;
 }
 .period-badge {
+display: none !important;
+}
+.video-logo-card {
 position: absolute;
-top: 28px;
-left: 28px;
-padding: 6px 14px;
-border-radius: 999px;
-background: rgba(0, 0, 0, 0.45);
-color: #ffffff;
-font-size: 15px;
-font-weight: 600;
-letter-spacing: 0.08em;
+left: 32px;
+bottom: 32px;
+height: 100px;
+padding: 10px 14px;
+border-radius: 14px;
+background: rgba(0, 0, 0, 0.35);
+box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.12);
 display: none;
 }
-.period-badge.show {
+.video-logo-card img {
+height: 100%;
+width: auto;
+max-width: 320px;
+object-fit: contain;
 display: block;
 }
 .qr-card {
@@ -118,8 +120,9 @@ left: 32px;
 bottom: 32px;
 font-size: 28px;
 font-weight: 700;
-opacity: 0.7;
+opacity: 0.85;
 font-variant-numeric: tabular-nums;
+color: #ffffff;
 }
 #status-toast {
 position: absolute;
@@ -147,7 +150,7 @@ opacity: 0.6;
 
 <!-- Slide 2: It's Fiha -->
 <div class="layer logo-layer" id="slide-1" data-brand="It's Fiha" style="background:#932125;">
-<img class="logo-img" src="https://gmp96gmp.github.io/matos-display-tvs/logo-itsfiha.png" alt="It's Fiha">
+<img class="logo-img logo-fiha" src="https://gmp96gmp.github.io/matos-display-tvs/logo-itsfiha.png" alt="It's Fiha" crossorigin="anonymous">
 <span class="brand-fallback" style="display:none;color:#ffffff;">IT'S FIHA</span>
 </div>
 
@@ -159,14 +162,13 @@ opacity: 0.6;
 
 <!-- Slide 4: Matos Restaurante -->
 <div class="layer logo-layer" id="slide-3" data-brand="Matos Restaurante" style="background:#720709;">
-<div class="logo-card">
-<img class="logo-img" src="https://gmp96gmp.github.io/matos-display-tvs/logo-matos.png" alt="Matos Restaurante">
-</div>
+<img class="logo-img logo-matos" src="https://gmp96gmp.github.io/matos-display-tvs/logo-matos.png" alt="Matos Restaurante">
 <span class="brand-fallback" style="display:none;color:#ffffff;">MATOS RESTAURANTE</span>
 </div>
 
 <!-- Elementos comuns sobre os slides de logo -->
 <div id="period-badge" class="period-badge" aria-live="polite"></div>
+<div id="video-logo-card" class="video-logo-card"><img id="video-logo" alt=""></div>
 <div id="qr-card" class="qr-card layer-overlay" style="display:none;">
 <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=https%3A%2F%2Fwa.me%2F5524992817332" alt="QR Code WhatsApp Matos">
 <div class="qr-title">Pedidos e reservas</div>
@@ -179,10 +181,38 @@ opacity: 0.6;
 /* =========================================================
    CONFIGURAÇÃO
    ========================================================= */
-const VIDEO_URL = "https://gmp96gmp.github.io/matos-display-tvs/video-matos-1.mp4";
-const LOGO_DURATION_MS = 6000;   // cada slide de logo fica 6s
-const FADE_MS = 800;             // crossfade 0.8s
-const VIDEO_TIMEOUT_MS = 8000;   // timeout de carregamento do vídeo
+const BASE_URL = "https://gmp96gmp.github.io/matos-display-tvs/";
+const URL_BASE = BASE_URL;
+const LOGO_DURATION_MS = 6000;
+const FADE_MS = 800;
+const VIDEO_TIMEOUT_MS = 8000;
+const HEARTBEAT_MS = 30000;
+const CORES_MARCA = { matos: '#720709', tropicana: '#f2cd52', matsumori: '#0e3010', itsfiha: '#932125' };
+const ORDEM_MARCAS = ['matos', 'tropicana', 'matsumori', 'itsfiha'];
+
+/* Extrai o token da marca de nomes "video-{marca}-{numero}.mp4" ou "logo-{marca}.png" */
+function extrairMarca(nomeArquivo) {
+const semExtensao = nomeArquivo.toLowerCase().replace(/\.[a-z0-9]+$/, "");
+const semPrefixo = semExtensao.replace(/^(video|logo)-/, "");
+return semPrefixo.replace(/-\d+$/, "");
+}
+
+/* Slides de logo derivados por convenção de nome */
+const LOGOS = ['logo-matsumori.png', 'logo-itsfiha.png', 'logo-tropicana.png', 'logo-matos.png'];
+
+/* Luminância perceptiva (0–255) de uma cor hex "#rrggbb" */
+function luminancia(hex) {
+const h = hex.replace('#', '');
+const r = parseInt(h.substring(0, 2), 16);
+const g = parseInt(h.substring(2, 4), 16);
+const b = parseInt(h.substring(4, 6), 16);
+return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+/* Cor do relógio conforme o fundo: preto sobre fundo claro, branco sobre fundo escuro */
+function corRelogioPara(hex) {
+return luminancia(hex) > 140 ? '#000000' : '#FFFFFF';
+}
 
 const video = document.getElementById("promo-video");
 const videoLayer = document.getElementById("video-layer");
@@ -190,12 +220,26 @@ const logoSlides = Array.from(document.querySelectorAll(".logo-layer"));
 const qrCard = document.getElementById("qr-card");
 const clockEl = document.getElementById("clock");
 const periodBadge = document.getElementById("period-badge");
+const videoLogoCard = document.getElementById("video-logo-card");
+const videoLogoImg = document.getElementById("video-logo");
+
+/* Período atual (almoço/jantar), mantido para playlists futuras por período */
+window.periodoAtual = null;
 
 /* Estado da playlist */
-let playlistIndex = 0;     // posição atual no ciclo
-let currentLayer = null;   // camada atualmente visível
-let videoFailedThisCycle = false;
+let playlistIndex = 0;
+let currentLayer = null;
 let videoTimer = null;
+let PLAYLIST = [];
+let VIDEOS_POR_MARCA = {};
+let FALLBACKS_EXISTENTES = [];
+let modoOffline = false;
+let fallbackIndex = 0;
+let fallbackTimer = null;
+let logoTimer = null;
+let heartbeatFails = 0;
+let itemAtual = null;
+let itemFallbackPos = 0;
 
 /* =========================================================
    AGENDAMENTO (almoço/jantar e relógio)
@@ -208,17 +252,20 @@ if (minutes >= 17 * 60 && minutes <= 23 * 60 + 59) return "JANTAR";
 return null;
 }
 
-// Atualiza badge e relógio; roda a cada minuto sem recarregar a página
+// Atualiza período (sem exibição), relógio e cor do relógio; roda a cada minuto
 function refreshSchedule() {
 const now = new Date();
-const label = getPeriodLabel(now);
-if (label) {
-periodBadge.textContent = label;
-periodBadge.classList.add("show");
-} else {
-periodBadge.classList.remove("show");
-}
+/* Período calculado e guardado em window.periodoAtual para uso futuro por período (playlists) */
+window.periodoAtual = getPeriodLabel(now);
 clockEl.textContent = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+clockEl.style.color = corRelogioPara(corFundoAtual());
+}
+
+/* Cor de fundo do slide de logo ativo (ou do slide atual, se houver) */
+function corFundoAtual() {
+if (!currentLayer || !currentLayer.classList.contains("logo-layer")) return '#000000';
+const cor = currentLayer.dataset.corFundo || '#000000';
+return cor.startsWith('#') ? cor : '#000000';
 }
 
 // Relógio atualizado a cada minuto, alinhado ao início do minuto
@@ -241,34 +288,176 @@ currentLayer.classList.remove("visible");
 }
 layer.classList.add("visible");
 currentLayer = layer;
+if (layer.classList.contains("logo-layer")) {
+clockEl.style.color = corRelogioPara(corFundoAtual());
+}
+}
+
+/* =========================================================
+   CACHE COM BLOB (CacheManager)
+   Mapa nomeArquivo -> { objectURL, blob, timestamp }
+   ========================================================= */
+// Gerenciador de cache: baixa blobs e mantém objectURLs enquanto necessários
+const CacheManager = {
+mapa: new Map(),
+async obter(nome) {
+try {
+if (this.mapa.has(nome)) return this.mapa.get(nome).objectURL;
+const resp = await fetch(BASE_URL + nome);
+if (!resp.ok) return null;
+const blob = await resp.blob();
+const objectURL = URL.createObjectURL(blob);
+this.mapa.set(nome, { objectURL, blob, timestamp: Date.now() });
+return objectURL;
+} catch (e) {
+return null;
+}
+},
+// Retorna objectURL já em cache ou null (sem baixar)
+emCache(nome) {
+const entrada = this.mapa.get(nome);
+return entrada ? entrada.objectURL : null;
+},
+// Mantém apenas os nomes da janela; revoga os demais
+podar(nomesManter) {
+const manter = new Set(nomesManter);
+for (const [nome, entrada] of this.mapa.entries()) {
+if (!manter.has(nome)) {
+try { URL.revokeObjectURL(entrada.objectURL); } catch (e) { /* ignora */ }
+this.mapa.delete(nome);
+}
+}
+}
+};
+
+/* =========================================================
+   DESCOBERTA DE ARQUIVOS POR CONVENÇÃO
+   ========================================================= */
+// Verifica existência de uma URL com HEAD (ou Range como alternativa) e timeout de 5s
+async function existeArquivo(nome) {
+const url = BASE_URL + nome;
+const comTimeout = (opts) => {
+const ctrl = new AbortController();
+const t = setTimeout(() => ctrl.abort(), 5000);
+return fetch(url, { ...opts, signal: ctrl.signal, cache: 'no-store' })
+.finally(() => clearTimeout(t));
+};
+try {
+const r = await comTimeout({ method: 'HEAD' });
+return r.ok;
+} catch (e) {
+// Falha de rede no HEAD: tenta GET com Range
+try {
+const r = await comTimeout({ method: 'GET', headers: { Range: 'bytes=0-0' } });
+return r.ok || r.status === 206;
+} catch (e2) {
+return false;
+}
+}
+}
+
+// Descobre vídeos e fallbacks existentes em paralelo
+async function descobrirArquivos() {
+const candidatosVideo = [];
+ORDEM_MARCAS.forEach(marca => {
+for (let n = 1; n <= 9; n++) candidatosVideo.push({ marca, n, nome: `video-${marca}-${n}.mp4` });
+});
+const candidatosFallback = [];
+for (let n = 1; n <= 9; n++) candidatosFallback.push(`imagem-fallback-${n}.png`);
+
+const [resVideos, resFallbacks] = await Promise.all([
+Promise.allSettled(candidatosVideo.map(c => existeArquivo(c.nome))),
+Promise.allSettled(candidatosFallback.map(n => existeArquivo(n)))
+]);
+
+VIDEOS_POR_MARCA = {};
+ORDEM_MARCAS.forEach(m => VIDEOS_POR_MARCA[m] = []);
+candidatosVideo.forEach((c, i) => {
+if (resVideos[i].status === 'fulfilled' && resVideos[i].value) {
+VIDEOS_POR_MARCA[c.marca][c.n - 1] = c.nome;
+}
+});
+// Compacta removendo lacunas, mantendo ordem
+ORDEM_MARCAS.forEach(m => {
+VIDEOS_POR_MARCA[m] = VIDEOS_POR_MARCA[m].filter(Boolean);
+});
+
+FALLBACKS_EXISTENTES = candidatosFallback.filter((n, i) =>
+resFallbacks[i].status === 'fulfilled' && resFallbacks[i].value
+);
+}
+
+/* Monta a playlist em rodadas: vídeo + logo da marca; logo sozinha quando não há vídeo */
+function construirPlaylist() {
+const itens = [];
+for (let r = 1; r <= 9; r++) {
+const temAlgum = ORDEM_MARCAS.some(m => VIDEOS_POR_MARCA[m][r - 1]);
+if (!temAlgum) continue;
+ORDEM_MARCAS.forEach(m => {
+const video = VIDEOS_POR_MARCA[m][r - 1];
+if (video) {
+itens.push({ tipo: 'video', nome: video, marca: m });
+itens.push({ tipo: 'logo', nome: `logo-${m}.png`, marca: m });
+} else {
+itens.push({ tipo: 'logo', nome: `logo-${m}.png`, marca: m });
+}
+});
+}
+return itens;
+}
+
+/* Cache de boot: fallbacks, logos e os 2 primeiros vídeos */
+async function cachearBoot() {
+const nomes = [...FALLBACKS_EXISTENTES, ...ORDEM_MARCAS.map(m => `logo-${m}.png`)];
+PLAYLIST.slice(0, 2).forEach(it => { if (it.tipo === 'video') nomes.push(it.nome); });
+await Promise.all(nomes.map(n => CacheManager.obter(n)));
+}
+
+/* Pré-carrega o item atual e o próximo, e poda o restante */
+async function gerenciarJanelaCache(indice) {
+const n = PLAYLIST.length;
+if (!n) return;
+const atual = PLAYLIST[indice];
+const proximo = PLAYLIST[(indice + 1) % n];
+const janela = [atual.nome, proximo.nome];
+CacheManager.podar([...janela, ...FALLBACKS_EXISTENTES, ...ORDEM_MARCAS.map(m => `logo-${m}.png`)]);
+for (const it of [atual, proximo]) {
+if (!CacheManager.emCache(it.nome)) CacheManager.obter(it.nome);
+}
 }
 
 /* =========================================================
    FALLBACK DE VÍDEO
    ========================================================= */
-// Pula para a sequência de logos se o vídeo falhar ou demorar além de 8s
+// Pula para o próximo item quando o vídeo falha
 function handleVideoFailure() {
 if (videoTimer) { clearTimeout(videoTimer); videoTimer = null; }
 video.pause();
 video.removeAttribute("src");
 video.load();
-videoFailedThisCycle = true;
-// Próximo passo: slide de logo (índice a partir do vídeo)
-advanceFromVideoFallback();
+advancePlaylist();
 }
 
-function playVideoSegment() {
-// Tenta o vídeo com timeout de 8s
-videoFailedThisCycle = false;
-video.src = VIDEO_URL;
+// Configura as barras laterais e o card de logo da marca do vídeo
+function setupVideoBrand(marca) {
+const cor = CORES_MARCA[marca] || '#720709';
+videoLayer.style.background = cor;
+video.style.background = cor;
+videoLogoImg.onerror = () => { videoLogoCard.style.display = 'none'; };
+videoLogoImg.onload = () => { videoLogoCard.style.display = 'block'; };
+const cached = CacheManager.emCache(`logo-${marca}.png`);
+videoLogoImg.src = cached || (BASE_URL + 'logo-' + marca + '.png');
+}
+
+// Toca um vídeo do item atual (blob em cache ou URL remota)
+function playVideoItem(item) {
+const src = CacheManager.emCache(item.nome) || (BASE_URL + item.nome);
+video.src = src;
+setupVideoBrand(item.marca);
 showLayer(videoLayer);
-
 videoTimer = setTimeout(() => {
-if (video.readyState < 2) {
-handleVideoFailure();
-}
+if (video.readyState < 2) handleVideoFailure();
 }, VIDEO_TIMEOUT_MS);
-
 const playPromise = video.play();
 if (playPromise && typeof playPromise.catch === "function") {
 playPromise.catch(() => handleVideoFailure());
@@ -282,87 +471,98 @@ if (videoTimer) { clearTimeout(videoTimer); videoTimer = null; }
 video.addEventListener("error", handleVideoFailure);
 
 video.addEventListener("ended", () => {
-// Vídeo tocou inteiro uma vez: segue para o próximo item da playlist
 if (videoTimer) { clearTimeout(videoTimer); videoTimer = null; }
 advancePlaylist();
 });
 
-// Após falha do vídeo: mostra slides de logo no lugar do vídeo
-function advanceFromVideoFallback() {
-// Caso o vídeo caia no meio do ciclo, retoma no próximo slide de logo
-showLogoAt(playlistIndex);
+/* =========================================================
+   PLAYLIST EM RODADAS
+   Cada vídeo é seguido da logo da marca; logos sem vídeo entram sozinhas
+   ========================================================= */
+// Índice do slide de logo para uma marca
+function indiceLogoDaMarca(marca) {
+return { matsumori: 0, itsfiha: 1, tropicana: 2, matos: 3 }[marca];
 }
 
-/* =========================================================
-   PLAYLIST EM LOOP
-   Sequência: VÍDEO → Logo 1 → Logo 2 → VÍDEO → Logo 3 → Logo 4 → repete
-   ========================================================= */
-// Índices: 0 = vídeo, 1 = logo1, 2 = logo2, 3 = vídeo, 4 = logo3, 5 = logo4
-const PLAYLIST = [
-{ type: "video" },
-{ type: "logo", index: 0 },
-{ type: "logo", index: 1 },
-{ type: "video" },
-{ type: "logo", index: 2 },
-{ type: "logo", index: 3 }
-];
-
-let logoTimer = null;
-
-// Avança para o próximo item do loop
+// Avança para o próximo item do loop (recomeça ao fim da playlist)
 function advancePlaylist() {
+if (modoOffline) return;
+if (!PLAYLIST.length) return;
 playlistIndex = (playlistIndex + 1) % PLAYLIST.length;
 runPlaylistItem();
 }
 
 // Executa o item atual da playlist
 function runPlaylistItem() {
+if (!PLAYLIST.length) return;
 const item = PLAYLIST[playlistIndex];
-if (item.type === "video") {
-// Vídeo: sem o QR/relógio/badge por cima
+itemAtual = item;
+gerenciarJanelaCache(playlistIndex);
+if (item.tipo === "video") {
 setOverlaysVisible(false);
-if (videoFailedThisCycle) {
-// Pula o vídeo neste ciclo e segue para os logos
-videoFailedThisCycle = false;
-playlistIndex = (playlistIndex + 1) % PLAYLIST.length;
-runPlaylistItem();
-return;
-}
-playVideoSegment();
+playVideoItem(item);
 } else {
-showLogoAt(playlistIndex);
+showLogoAt(item);
 }
 }
 
 // Mostra um slide de logo e agenda o próximo item após 6s
-function showLogoAt(playlistPos) {
-const item = PLAYLIST[playlistPos];
-const logoIdx = item.index !== undefined ? item.index : 0;
-const layer = logoSlides[logoIdx];
+function showLogoAt(item) {
+const layer = logoSlides[indiceLogoDaMarca(item.marca)];
 video.pause();
 showLayer(layer);
 setOverlaysVisible(true);
 refreshSchedule();
-
 if (logoTimer) clearTimeout(logoTimer);
-logoTimer = setTimeout(() => {
-advancePlaylist();
-}, LOGO_DURATION_MS);
+logoTimer = setTimeout(() => advancePlaylist(), LOGO_DURATION_MS);
 }
 
 // Mostra ou esconde QR code, badge e relógio
 function setOverlaysVisible(visible) {
 qrCard.style.display = visible ? "block" : "none";
 clockEl.style.display = visible ? "block" : "none";
-if (!visible) periodBadge.classList.remove("show");
-else refreshSchedule();
+videoLogoCard.style.display = visible ? "none" : "block";
+if (visible) refreshSchedule();
 }
 
 /* =========================================================
    FALLBACK DE IMAGENS DOS LOGOS
    Se a imagem falhar, esconde a img e mostra o nome da marca
    ========================================================= */
+/* Lê a cor exata do pixel (2,2) da logo do It's Fiha e usa como fundo do slide.
+Se o CORS bloquear a leitura ou o canvas falhar, mantém o fallback #932125. */
+function applyFihaBackgroundFromLogo() {
+const slide = document.getElementById("slide-1");
+const img = slide.querySelector("img.logo-img");
+if (!img) return;
+const readColor = () => {
+try {
+const canvas = document.createElement("canvas");
+canvas.width = img.naturalWidth;
+canvas.height = img.naturalHeight;
+const ctx = canvas.getContext("2d", { willReadFrequently: true });
+ctx.drawImage(img, 0, 0);
+const [r, g, b, a] = ctx.getImageData(2, 2, 1, 1).data;
+if (a > 0) {
+slide.style.background = `rgb(${r}, ${g}, ${b})`;
+slide.dataset.corFundo = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+} catch (e) {
+/* CORS bloqueado ou erro de canvas: mantém #932125 */
+}
+};
+if (img.complete && img.naturalWidth > 0) readColor();
+else img.addEventListener("load", readColor);
+}
+
 function setupLogoFallbacks() {
+applyFihaBackgroundFromLogo();
+logoSlides.forEach(slide => {
+if (!slide.dataset.corFundo) slide.dataset.corFundo = getComputedStyle(slide).backgroundColor;
+});
+document.getElementById("slide-0").dataset.corFundo = CORES_MARCA.matsumori;
+document.getElementById("slide-2").dataset.corFundo = CORES_MARCA.tropicana;
+document.getElementById("slide-3").dataset.corFundo = CORES_MARCA.matos;
 logoSlides.forEach(slide => {
 const img = slide.querySelector("img.logo-img");
 const fallback = slide.querySelector(".brand-fallback");
@@ -375,14 +575,111 @@ if (fallback) fallback.style.display = "block";
 }
 
 /* =========================================================
+   MODO OFFLINE (FALLBACK DE INTERNET)
+   Heartbeat a cada 30s; 2 falhas = offline; 1 sucesso = online
+   ========================================================= */
+// Verifica conectividade com HEAD na logo da marca, timeout de 8s
+async function verificarConexao() {
+const ctrl = new AbortController();
+const t = setTimeout(() => ctrl.abort(), 8000);
+try {
+const r = await fetch(URL_BASE + "logo-matos.png", { method: 'HEAD', cache: 'no-store', signal: ctrl.signal });
+clearTimeout(t);
+return r.ok;
+} catch (e) {
+clearTimeout(t);
+return false;
+}
+}
+
+// Processa resultado do heartbeat e alterna modos quando necessário
+async function heartbeat() {
+const ok = await verificarConexao();
+if (ok) {
+heartbeatFails = 0;
+if (modoOffline) sairModoFallback();
+} else {
+heartbeatFails++;
+if (heartbeatFails >= 2 && !modoOffline) entrarModoFallback();
+}
+}
+
+// Interrompe a playlist e exibe o modo fallback em loop
+function entrarModoFallback() {
+modoOffline = true;
+itemFallbackPos = playlistIndex;
+if (logoTimer) { clearTimeout(logoTimer); logoTimer = null; }
+if (videoTimer) { clearTimeout(videoTimer); videoTimer = null; }
+video.pause();
+mostrarFallbackItem(0);
+}
+
+// Encerra o modo fallback e retoma a playlist do item seguinte
+function sairModoFallback() {
+modoOffline = false;
+if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
+playlistIndex = PLAYLIST.length ? (itemFallbackPos + 1) % PLAYLIST.length : 0;
+runPlaylistItem();
+}
+
+// Exibe o slide de fallback atual (imagens ou logos) e agenda o seguinte
+function mostrarFallbackItem(pos) {
+if (!modoOffline) return;
+fallbackIndex = pos;
+if (FALLBACKS_EXISTENTES.length) {
+mostrarImagemFallback(FALLBACKS_EXISTENTES[pos % FALLBACKS_EXISTENTES.length]);
+fallbackTimer = setTimeout(() => mostrarFallbackItem(pos + 1), LOGO_DURATION_MS);
+} else {
+const marca = ORDEM_MARCAS[pos % ORDEM_MARCAS.length];
+showLayer(logoSlides[indiceLogoDaMarca(marca)]);
+setOverlaysVisible(true);
+refreshSchedule();
+fallbackTimer = setTimeout(() => mostrarFallbackItem(pos + 1), LOGO_DURATION_MS);
+}
+}
+
+// Mostra imagem fallback em full-screen usando blob em cache
+function mostrarImagemFallback(nome) {
+let camada = document.getElementById("fallback-layer");
+if (!camada) {
+camada = document.createElement("div");
+camada.id = "fallback-layer";
+camada.className = "layer";
+camada.style.background = "#720709";
+const img = document.createElement("img");
+img.id = "fallback-img";
+img.alt = "";
+img.style.cssText = "width:100%;height:100%;object-fit:contain;display:block;";
+camada.appendChild(img);
+document.getElementById("stage").appendChild(camada);
+}
+const img = document.getElementById("fallback-img");
+img.src = CacheManager.emCache(nome) || (BASE_URL + nome);
+qrCard.style.display = "none";
+clockEl.style.display = "none";
+videoLogoCard.style.display = "none";
+showLayer(camada);
+}
+
+/* =========================================================
    INÍCIO
    ========================================================= */
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
 setupLogoFallbacks();
 scheduleMinuteTicks();
-// Inicia a playlist pelo vídeo
+await descobrirArquivos();
+PLAYLIST = construirPlaylist();
+await cachearBoot();
+window.addEventListener("online", heartbeat);
+window.addEventListener("offline", heartbeat);
+setInterval(heartbeat, HEARTBEAT_MS);
+heartbeat();
+if (PLAYLIST.length) {
 playlistIndex = 0;
 runPlaylistItem();
+} else {
+entrarModoFallback();
+}
 });
 </script>
 </body>
